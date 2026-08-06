@@ -4,14 +4,18 @@ import br.com.techmind.classificador.client.PredicaoGateway;
 import br.com.techmind.classificador.client.PredicaoClient;
 import br.com.techmind.classificador.dto.ClassificacaoRequest;
 import br.com.techmind.classificador.entity.ArtigoClassificado;
+import br.com.techmind.classificador.exception.ParametroInvalidoException;
 import br.com.techmind.classificador.exception.RegistroNotFoundException;
 import br.com.techmind.classificador.repository.ArtigoRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.util.List;
 import java.util.Optional;
@@ -32,8 +36,12 @@ class ArtigoServiceTest {
     @Mock
     private ArtigoRepository artigoRepository;
 
-    @InjectMocks
     private ArtigoService artigoService;
+
+    @BeforeEach
+    void setUp() {
+        artigoService = new ArtigoService(predicaoClient, artigoRepository, 100);
+    }
 
     @Test
     void deveClassificarComoAprovadoEGuardarTextoNormalizado() {
@@ -74,15 +82,65 @@ class ArtigoServiceTest {
     @Test
     void deveListarArtigosConvertidosParaResposta() {
         var artigo = new ArtigoClassificado("Título", "Texto", "Backend", 0.89,
-                "Aprovado", List.of("Java"));
-        when(artigoRepository.findAllByOrderByCriadoEmDesc()).thenReturn(List.of(artigo));
+                "APROVADO", List.of("Java"));
+        var pageable = PageRequest.of(0, 10);
+        when(artigoRepository.findAll(any(Specification.class), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(artigo), pageable, 1));
 
-        var respostas = artigoService.listar();
+        var pagina = artigoService.listar(0, 10, null, null, null, null, null);
 
-        assertEquals(1, respostas.size());
-        assertEquals("Título", respostas.get(0).titulo());
-        assertEquals("Backend", respostas.get(0).categoria());
-        assertIterableEquals(List.of("Java"), respostas.get(0).informacoesAdicionais());
+        assertEquals(1, pagina.conteudo().size());
+        assertEquals("Título", pagina.conteudo().get(0).titulo());
+        assertEquals("Backend", pagina.conteudo().get(0).categoria());
+        assertIterableEquals(List.of("Java"), pagina.conteudo().get(0).informacoesAdicionais());
+        assertEquals(0, pagina.pagina());
+        assertEquals(1, pagina.totalElementos());
+        assertEquals(1, pagina.totalPaginas());
+        assertEquals(true, pagina.primeira());
+        assertEquals(true, pagina.ultima());
+    }
+
+    @Test
+    void deveLancarExcecaoQuandoPageForNegativo() {
+        assertThrows(ParametroInvalidoException.class,
+                () -> artigoService.listar(-1, 10, null, null, null, null, null));
+    }
+
+    @Test
+    void deveLancarExcecaoQuandoSizeForZeroOuNegativo() {
+        assertThrows(ParametroInvalidoException.class,
+                () -> artigoService.listar(0, 0, null, null, null, null, null));
+    }
+
+    @Test
+    void deveLancarExcecaoQuandoStatusForInvalido() {
+        assertThrows(ParametroInvalidoException.class,
+                () -> artigoService.listar(0, 10, null, null, null, "INVALIDO", null));
+    }
+
+    @Test
+    void deveLancarExcecaoQuandoCampoDeOrdenacaoForInvalido() {
+        assertThrows(ParametroInvalidoException.class,
+                () -> artigoService.listar(0, 10, "campoInexistente,desc", null, null, null, null));
+    }
+
+    @Test
+    void deveLancarExcecaoQuandoDirecaoDeOrdenacaoForInvalida() {
+        assertThrows(ParametroInvalidoException.class,
+                () -> artigoService.listar(0, 10, "criadoEm,invalida", null, null, null, null));
+    }
+
+    @Test
+    void deveLimitarTamanhoDaPaginaAoMaximoConfigurado() {
+        var pageable = PageRequest.of(0, 100);
+        when(artigoRepository.findAll(any(Specification.class), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        artigoService.listar(0, 500, null, null, null, null, null);
+
+        var captor = ArgumentCaptor.forClass(org.springframework.data.domain.Pageable.class);
+        verify(artigoRepository).findAll(any(Specification.class), captor.capture());
+        assertEquals(100, captor.getValue().getPageSize());
     }
 
     @Test

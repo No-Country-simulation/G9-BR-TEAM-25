@@ -13,5 +13,5 @@ public record ClassificacaoResponse(String categoria, double confianca, String s
     public double probabilidade() { return confianca; }
     @JsonProperty("informacoesAdicionais")
     public List<String> informacoesAdicionais() { return palavrasChave; }
-    public record ArtigoRelacionado(Long id, String titulo, String categoria) { }
+    public record ArtigoRelacionado(String id, String titulo, String categoria, Double scoreSimilaridade) { }
 }

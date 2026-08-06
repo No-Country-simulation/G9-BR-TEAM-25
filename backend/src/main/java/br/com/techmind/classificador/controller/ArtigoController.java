@@ -2,11 +2,13 @@ package br.com.techmind.classificador.controller;
 
 import br.com.techmind.classificador.dto.ClassificacaoRequest;
 import br.com.techmind.classificador.dto.ClassificacaoResponse;
+import br.com.techmind.classificador.dto.PaginaArtigosResponse;
 import br.com.techmind.classificador.service.ArtigoService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -14,7 +16,6 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 
 import java.util.Map;
-import java.util.List;
 import br.com.techmind.classificador.dto.ArtigoResponse;
 
 @RestController
@@ -42,10 +43,30 @@ public class ArtigoController {
     }
 
     @GetMapping
-    @Operation(summary = "Lista classificações salvas")
-    @ApiResponse(responseCode = "200", description = "Classificações persistidas")
-    public ResponseEntity<List<ArtigoResponse>> listar() {
-        return ResponseEntity.ok(artigoService.listar());
+    @Operation(summary = "Lista classificações salvas de forma paginada",
+            description = "Retorna uma página de classificações persistidas, com filtros opcionais combináveis "
+                    + "por título (parcial), categoria, status e palavra-chave.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Página de classificações"),
+            @ApiResponse(responseCode = "400", description = "Parâmetro de paginação, ordenação ou filtro inválido")
+    })
+    public ResponseEntity<PaginaArtigosResponse> listar(
+            @Parameter(description = "Número da página, começando em 0", example = "0")
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Tamanho da página (máximo 100)", example = "10")
+            @RequestParam(defaultValue = "10") int size,
+            @Parameter(description = "Campo e direção de ordenação, no formato campo,asc|desc. "
+                    + "Campos aceitos: criadoEm, titulo, categoria, status, confianca", example = "criadoEm,desc")
+            @RequestParam(defaultValue = "criadoEm,desc") String sort,
+            @Parameter(description = "Filtro parcial por título, ignora maiúsculas/minúsculas", example = "spring")
+            @RequestParam(required = false) String titulo,
+            @Parameter(description = "Filtro exato por categoria (ignora maiúsculas/minúsculas)", example = "Backend")
+            @RequestParam(required = false) String categoria,
+            @Parameter(description = "Filtro por status persistido: APROVADO ou PENDENTE", example = "APROVADO")
+            @RequestParam(required = false) String status,
+            @Parameter(description = "Filtro por palavra-chave extraída do artigo", example = "java")
+            @RequestParam(required = false) String palavraChave) {
+        return ResponseEntity.ok(artigoService.listar(page, size, sort, titulo, categoria, status, palavraChave));
     }
 
     @GetMapping("/{id}")

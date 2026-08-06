@@ -8,6 +8,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.time.Instant;
 
@@ -16,6 +17,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MlIntegrationException.class)
     public ResponseEntity<ErroResponse> ml(MlIntegrationException ex, HttpServletRequest request) {
         return response(HttpStatus.BAD_GATEWAY, "Erro de integração ML", ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(ParametroInvalidoException.class)
+    public ResponseEntity<ErroResponse> parametroInvalido(ParametroInvalidoException ex, HttpServletRequest request) {
+        return response(HttpStatus.BAD_REQUEST, "Parâmetro inválido", ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErroResponse> tipoDeParametroInvalido(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        var mensagem = "Parâmetro '" + ex.getName() + "' inválido: valor '" + ex.getValue() + "' não é compatível.";
+        return response(HttpStatus.BAD_REQUEST, "Parâmetro inválido", mensagem, request);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

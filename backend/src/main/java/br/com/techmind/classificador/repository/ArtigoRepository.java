@@ -2,9 +2,8 @@ package br.com.techmind.classificador.repository;
 
 import br.com.techmind.classificador.entity.ArtigoClassificado;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
-import java.util.List;
-
-public interface ArtigoRepository extends JpaRepository<ArtigoClassificado, Long> {
-    List<ArtigoClassificado> findAllByOrderByCriadoEmDesc();
+public interface ArtigoRepository extends JpaRepository<ArtigoClassificado, Long>,
+        JpaSpecificationExecutor<ArtigoClassificado> {
 }

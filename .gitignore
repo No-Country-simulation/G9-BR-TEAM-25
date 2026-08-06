@@ -1,0 +1,34 @@
+# Maven/build
+target/
+build-classes/
+*.class
+
+# Logs and local runtime files
+*.log
+logs/
+local-run*.log
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+senha OCI.txt
+
+# Oracle Autonomous Database wallets and credentials
+wallet/
+wallet-*/
+**/wallet/
+**/wallet-*/
+*.p12
+*.pem
+*.jks
+*.sso
+tnsnames.ora
+sqlnet.ora
+ojdbc.properties
+
+# Local model/runtime artifacts
+__pycache__/
+
+# Tool-generated reports
+.github/modernize/

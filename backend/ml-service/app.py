@@ -15,6 +15,11 @@ class PredictionRequest(BaseModel):
     texto: str
 
 
+class OfficialPredictionRequest(BaseModel):
+    titulo: str
+    resumo: str
+
+
 @app.on_event("startup")
 def load_model() -> None:
     global model
@@ -30,12 +35,11 @@ def health() -> dict[str, str]:
     return {"status": "UP" if model is not None else "DOWN"}
 
 
-@app.post("/predict")
-def predict(request: PredictionRequest) -> dict[str, Any]:
+def _predict(titulo: str, texto: str) -> dict[str, Any]:
     if model is None:
         raise HTTPException(status_code=503, detail="Modelo não carregado")
     # O modelo recebe exclusivamente titulo + texto; metadados ficam fora do pipeline.
-    combined_text = f"{request.titulo.strip()}\n{request.texto.strip()}"
+    combined_text = f"{titulo.strip()}\n{texto.strip()}"
     probabilities = model.predict_proba([combined_text])[0]
     index = int(probabilities.argmax())
     category = str(model.classes_[index])
@@ -48,3 +52,14 @@ def predict(request: PredictionRequest) -> dict[str, Any]:
         "palavrasChave": keywords,
         "artigosRelacionados": []
     }
+
+
+@app.post("/predict")
+def predict(request: PredictionRequest) -> dict[str, Any]:
+    return _predict(request.titulo, request.texto)
+
+
+@app.post("/api/v1/artigos/processar-completo")
+def processar_completo(request: OfficialPredictionRequest) -> dict[str, Any]:
+    """Contrato compatível com o serviço oficial de Ciência de Dados."""
+    return _predict(request.titulo, request.resumo)
