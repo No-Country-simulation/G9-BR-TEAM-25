@@ -1,17 +1,17 @@
 {
     "limiar_confianca": 0.6,
-    "acuracia_teste": 0.7225,
+    "acuracia_teste": 0.7284,
     "modelo": "TfidfVectorizer(15k) + CalibratedClassifierCV(LinearSVC)",
     "categorias_suportadas": [
-        "Backend",
-        "Banco de Dados",
-        "Cibersegurança",
+        "Artificial Intelligence",
+        "Backend Development",
         "Cloud Computing",
+        "Computer Networks",
+        "Cybersecurity",
         "Data Science",
-        "Devops",
-        "Frontend",
-        "Inteligencia artificial",
-        "Mobile",
-        "Redes"
+        "Database Systems",
+        "DevOps",
+        "Frontend Development",
+        "Mobile Development"
     ]
 }

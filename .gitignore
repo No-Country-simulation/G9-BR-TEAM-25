@@ -19,4 +19,3 @@ Thumbs.db
 *.log
 
 models/backups/
-*.pkl
