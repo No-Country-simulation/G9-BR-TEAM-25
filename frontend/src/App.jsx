@@ -1,9 +1,25 @@
+/**
+ * TechMind - Interface principal da central de conhecimento.
+ *
+ * @author Diego Pitoco
+ */
 import { useEffect, useState } from 'react'
 import './App.css'
-import { buscarArtigo, checkHealth, classificarArtigo, listarArtigos } from './api/artigosApi'
+import {
+  atualizarArtigo,
+  buscarArtigo,
+  buscarEstatisticas,
+  buscarFeedback,
+  checkHealth,
+  classificarArtigo,
+  excluirArtigo,
+  listarArtigos,
+  moderarArtigo,
+} from './api/artigosApi'
 
 const initialForm = { titulo: '', texto: '', autores: '', link: '', ano: '' }
 const initialFiltros = { titulo: '', categoria: '', status: '', palavraChave: '' }
+const initialFormEdicao = { titulo: '', texto: '', autores: '', link: '', ano: '' }
 const TAMANHO_PAGINA = 10
 
 function App() {
@@ -12,6 +28,8 @@ function App() {
   const [carregandoClassificacao, setCarregandoClassificacao] = useState(false)
   const [erroClassificacao, setErroClassificacao] = useState('')
   const [apiOnline, setApiOnline] = useState(false)
+
+  const [estatisticas, setEstatisticas] = useState(null)
 
   const [artigos, setArtigos] = useState([])
   const [paginaAtual, setPaginaAtual] = useState(0)
@@ -29,8 +47,38 @@ function App() {
   const [carregandoDetalhes, setCarregandoDetalhes] = useState(false)
   const [erroDetalhes, setErroDetalhes] = useState('')
 
+  const [edicaoAtiva, setEdicaoAtiva] = useState(false)
+  const [formEdicao, setFormEdicao] = useState(initialFormEdicao)
+  const [carregandoEdicao, setCarregandoEdicao] = useState(false)
+  const [erroEdicao, setErroEdicao] = useState('')
+
+  const [categoriaCorrigidaInput, setCategoriaCorrigidaInput] = useState('')
+  const [carregandoModeracao, setCarregandoModeracao] = useState(false)
+  const [erroModeracao, setErroModeracao] = useState('')
+
+  const [carregandoExclusao, setCarregandoExclusao] = useState(false)
+  const [erroExclusao, setErroExclusao] = useState('')
+
+  const [feedbackHistorico, setFeedbackHistorico] = useState([])
+
   function categoryLabel(category) {
     return category && category.toLowerCase() !== 'indefinido' ? category : 'Sem categoria'
+  }
+
+  function statusLabel(status) {
+    if (status === 'PENDENTE_MODERACAO') return 'Pendente de moderação'
+    if (status === 'APROVADO') return 'Aprovado'
+    if (status === 'REJEITADO') return 'Rejeitado'
+    return status || 'CLASSIFICADO'
+  }
+
+  async function carregarEstatisticas() {
+    try {
+      const dados = await buscarEstatisticas()
+      setEstatisticas(dados)
+    } catch {
+      // Estatísticas são complementares: uma falha aqui não deve travar o restante da tela.
+    }
   }
 
   async function carregarArtigos(pagina, filtrosParaConsulta) {
@@ -46,6 +94,7 @@ function App() {
         palavraChave: filtrosParaConsulta.palavraChave,
       })
       setArtigos(resposta.conteudo)
+      setArtigoSelecionado((atual) => (atual && resposta.conteudo.some((item) => item.id === atual.id) ? atual : null))
       setPaginaAtual(resposta.pagina)
       setTotalElementos(resposta.totalElementos)
       setTotalPaginas(resposta.totalPaginas)
@@ -63,6 +112,7 @@ function App() {
   useEffect(() => {
     checkHealth().then(setApiOnline)
     carregarArtigos(0, initialFiltros)
+    carregarEstatisticas()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -101,9 +151,16 @@ function App() {
     setCarregandoDetalhes(true)
     setErroDetalhes('')
     setArtigoSelecionado(null)
+    setEdicaoAtiva(false)
+    setErroEdicao('')
+    setErroModeracao('')
+    setErroExclusao('')
+    setCategoriaCorrigidaInput('')
+    setFeedbackHistorico([])
     try {
       const detalhe = await buscarArtigo(id)
       setArtigoSelecionado(detalhe)
+      buscarFeedback(id).then(setFeedbackHistorico).catch(() => setFeedbackHistorico([]))
     } catch (requestError) {
       setErroDetalhes(requestError.message || 'Não foi possível carregar os detalhes.')
     } finally {
@@ -114,6 +171,7 @@ function App() {
   function fecharDetalhes() {
     setArtigoSelecionado(null)
     setErroDetalhes('')
+    setEdicaoAtiva(false)
   }
 
   async function classify(event) {
@@ -131,10 +189,89 @@ function App() {
       setApiOnline(true)
       setResult(data)
       await carregarArtigos(paginaAtual, filtros)
+      await carregarEstatisticas()
     } catch (requestError) {
-      setErroClassificacao(requestError.message || 'Verifique se o backend está em execução.')
+      setErroClassificacao(requestError.message || 'Não foi possível classificar o conteúdo no momento. Tente novamente.')
     } finally {
       setCarregandoClassificacao(false)
+    }
+  }
+
+  function iniciarEdicao() {
+    setFormEdicao({
+      titulo: artigoSelecionado.titulo || '',
+      texto: artigoSelecionado.texto || '',
+      autores: artigoSelecionado.autores || '',
+      link: artigoSelecionado.link || '',
+      ano: artigoSelecionado.ano || '',
+    })
+    setErroEdicao('')
+    setEdicaoAtiva(true)
+  }
+
+  function cancelarEdicao() {
+    setEdicaoAtiva(false)
+    setErroEdicao('')
+  }
+
+  function atualizarCampoEdicao(event) {
+    setFormEdicao((current) => ({ ...current, [event.target.name]: event.target.value }))
+  }
+
+  async function salvarEdicao(event) {
+    event.preventDefault()
+    if (carregandoEdicao) return
+    setCarregandoEdicao(true)
+    setErroEdicao('')
+    try {
+      const payload = { ...formEdicao, ano: formEdicao.ano ? Number(formEdicao.ano) : null }
+      const atualizado = await atualizarArtigo(artigoSelecionado.id, payload)
+      setArtigoSelecionado(atualizado)
+      setEdicaoAtiva(false)
+      await carregarArtigos(paginaAtual, filtros)
+    } catch (requestError) {
+      setErroEdicao(requestError.message || 'Não foi possível salvar as alterações. Tente novamente.')
+    } finally {
+      setCarregandoEdicao(false)
+    }
+  }
+
+  async function aplicarModeracao(decisao) {
+    if (carregandoModeracao) return
+    setCarregandoModeracao(true)
+    setErroModeracao('')
+    try {
+      const atualizado = await moderarArtigo(artigoSelecionado.id, {
+        decisao,
+        categoriaCorrigida: categoriaCorrigidaInput,
+      })
+      setArtigoSelecionado(atualizado)
+      setCategoriaCorrigidaInput('')
+      buscarFeedback(atualizado.id).then(setFeedbackHistorico).catch(() => {})
+      await carregarArtigos(paginaAtual, filtros)
+      await carregarEstatisticas()
+    } catch (requestError) {
+      setErroModeracao(requestError.message || 'Não foi possível aplicar a moderação. Tente novamente.')
+    } finally {
+      setCarregandoModeracao(false)
+    }
+  }
+
+  async function confirmarExclusao() {
+    if (carregandoExclusao || !artigoSelecionado) return
+    const confirmado = window.confirm('Tem certeza de que deseja excluir este conteúdo?')
+    if (!confirmado) return
+    setCarregandoExclusao(true)
+    setErroExclusao('')
+    try {
+      await excluirArtigo(artigoSelecionado.id)
+      setArtigoSelecionado(null)
+      await carregarArtigos(0, filtros)
+      await carregarEstatisticas()
+    } catch (requestError) {
+      setErroExclusao(requestError.message || 'Não foi possível excluir o conteúdo. Tente novamente.')
+    } finally {
+      setCarregandoExclusao(false)
     }
   }
 
@@ -148,14 +285,29 @@ function App() {
         <div className="top-actions"><span className={`api-status ${apiOnline ? '' : 'offline'}`} title="Verifica apenas a disponibilidade do backend Java"><i /> API {apiOnline ? 'online' : 'offline'}</span><a href={import.meta.env.VITE_SWAGGER_URL || 'http://localhost:8080/swagger-ui.html'} target="_blank" rel="noreferrer">? Swagger</a><span className="user">Equipe<br /><small>TechMind</small></span></div>
       </header>
 
-      <nav className="content-nav" aria-label="Navegação principal"><button className="active">▱ Meus conteúdos</button><button>＋ Novo conteúdo</button><button className="disabled">♢ Moderação <small>em breve</small></button></nav>
+      <nav className="content-nav" aria-label="Navegação principal"><span className="nav-indicator" aria-current="page">▱ Meus conteúdos</span></nav>
 
       <section className="hero">
-        <div><p className="eyebrow">CENTRAL DE CONHECIMENTO</p><h1>Conteúdos <em>inteligentes</em></h1><p className="subtitle">Classifique artigos técnicos e organize seu conhecimento com inteligência artificial.</p></div>
+        <div><p className="eyebrow">CENTRAL DE CONHECIMENTO</p><h1>Conteúdos <em>inteligentes</em></h1><p className="subtitle">Classifique conteúdos técnicos, descubra palavras-chave e encontre materiais relacionados.</p></div>
         <button className="new-content" onClick={() => document.getElementById('titulo')?.focus()}>＋ Novo conteúdo</button>
       </section>
 
-      <section className="metrics"><div><span>CONTEÚDOS VISÍVEIS</span><strong>{totalElementos}</strong><small>Classificações salvas</small></div><div><span>CATEGORIAS</span><strong>{new Set(artigos.map((item) => categoryLabel(item.categoria)).filter((category) => category !== 'Sem categoria')).size}</strong><small>Nesta página</small></div><div className="highlight"><span>CONFIANÇA MÉDIA</span><strong>{artigos.length ? `${Math.round(artigos.reduce((sum, item) => sum + (item.confianca || 0), 0) / artigos.length * 100)}%` : '—'}</strong><small>Nesta página</small></div></section>
+      <section className="metrics">
+        <div><span>TOTAL DE CONTEÚDOS</span><strong>{estatisticas ? estatisticas.total : '—'}</strong><small>Global (Oracle)</small></div>
+        <div><span>APROVADOS</span><strong>{estatisticas ? estatisticas.aprovados : '—'}</strong><small>Status atual</small></div>
+        <div><span>PENDENTES</span><strong>{estatisticas ? estatisticas.pendentesModeracao : '—'}</strong><small>Aguardando moderação</small></div>
+        <div><span>REJEITADOS</span><strong>{estatisticas ? estatisticas.rejeitados : '—'}</strong><small>Status atual</small></div>
+        <div><span>CATEGORIAS</span><strong>{estatisticas ? estatisticas.quantidadeCategorias : '—'}</strong><small>Distintas</small></div>
+        <div className="highlight"><span>CONFIANÇA MÉDIA</span><strong>{estatisticas ? `${Math.round(estatisticas.confiancaMedia * 100)}%` : '—'}</strong><small>Global</small></div>
+      </section>
+
+      {estatisticas?.distribuicaoPorCategoria && Object.keys(estatisticas.distribuicaoPorCategoria).length > 0 && (
+        <div className="category-distribution">
+          {Object.entries(estatisticas.distribuicaoPorCategoria).map(([categoria, quantidade]) => (
+            <span key={categoria}>{categoryLabel(categoria)} <b>{quantidade}</b></span>
+          ))}
+        </div>
+      )}
 
       <section className="workspace">
         <form className="card form-card" onSubmit={classify}>
@@ -179,17 +331,19 @@ function App() {
           <input id="link" name="link" value={form.link} onChange={updateField} type="url" placeholder="https://exemplo.com/artigo" />
 
           {erroClassificacao && <p className="error-message" role="alert">{erroClassificacao}</p>}
-          <button className="primary-button" type="submit" disabled={carregandoClassificacao}>{carregandoClassificacao ? 'Classificando...' : 'Classificar artigo'} <span>→</span></button>
+          <button className="primary-button" type="submit" disabled={carregandoClassificacao}>
+            {carregandoClassificacao ? <><span className="spinner" aria-hidden="true" /> Analisando conteúdo...</> : <>Classificar artigo <span>→</span></>}
+          </button>
         </form>
 
-        <aside className="card result-card">
+        <aside className="card result-card" aria-live="polite">
           <div className="card-heading"><div><span className="step">02</span><h2>Resultado</h2></div></div>
           {result ? <div className="result-content">
             <div className="category-label">CATEGORIA IDENTIFICADA</div>
             <div className="category">{categoryLabel(result.categoria)}</div>
             <div className="confidence-row"><span>Confiança</span><strong>{Math.round(result.confianca * 100)}%</strong></div>
             <div className="progress"><span style={{ width: `${result.confianca * 100}%` }} /></div>
-            <div className={`status ${result.status?.toLowerCase()}`}>{result.status || 'CLASSIFICADO'}</div>
+            <div className={`status ${result.status?.toLowerCase()}`}>{statusLabel(result.status)}</div>
             <div className="keywords"><h3>Palavras-chave</h3><div>{(result.palavrasChave || []).map((keyword) => <span key={keyword}>{keyword}</span>)}</div></div>
             <div className="related">
               <h3>Conteúdos relacionados</h3>
@@ -216,7 +370,8 @@ function App() {
               <select id="filtroStatus" name="status" value={filtros.status} onChange={atualizarFiltro}>
                 <option value="">Todos</option>
                 <option value="APROVADO">Aprovado</option>
-                <option value="PENDENTE">Pendente</option>
+                <option value="PENDENTE_MODERACAO">Pendente de moderação</option>
+                <option value="REJEITADO">Rejeitado</option>
               </select>
             </div>
             <div><label htmlFor="filtroPalavraChave">Palavra-chave</label><input id="filtroPalavraChave" name="palavraChave" value={filtros.palavraChave} onChange={atualizarFiltro} placeholder="Ex.: java" /></div>
@@ -236,6 +391,7 @@ function App() {
             <button type="button" className="history-item" key={item.id} onClick={() => selecionarArtigo(item.id)}>
               <span className="history-icon">↗</span>
               <div><strong>{item.titulo || 'Artigo sem título'}</strong><small>{categoryLabel(item.categoria)}</small></div>
+              {item.status && <span className={`status ${item.status.toLowerCase()}`}>{statusLabel(item.status)}</span>}
               <b>{item.confianca ? `${Math.round(item.confianca * 100)}%` : '—'}</b>
             </button>
           ))}</div> : <p className="no-history">Nenhuma classificação encontrada com os filtros atuais.</p>
@@ -254,21 +410,75 @@ function App() {
         </div>
         {carregandoDetalhes && <p className="no-history">Carregando detalhes...</p>}
         {erroDetalhes && <p className="error-message" role="alert">{erroDetalhes}</p>}
-        {artigoSelecionado && <div className="details-content">
+        {artigoSelecionado && !edicaoAtiva && <div className="details-content">
           <div className="category-label">CATEGORIA</div>
           <div className="category">{categoryLabel(artigoSelecionado.categoria)}</div>
+          {artigoSelecionado.categoriaOriginal && artigoSelecionado.categoriaOriginal !== artigoSelecionado.categoria && (
+            <p className="category-original">Categoria original identificada pela IA: {categoryLabel(artigoSelecionado.categoriaOriginal)}</p>
+          )}
           <h3>{artigoSelecionado.titulo}</h3>
           <p className="details-text">{artigoSelecionado.texto}</p>
           <div className="details-grid">
             <div><span>Autores</span><strong>{artigoSelecionado.autores || '—'}</strong></div>
             <div><span>Ano</span><strong>{artigoSelecionado.ano || '—'}</strong></div>
             <div><span>Confiança</span><strong>{Math.round(artigoSelecionado.confianca * 100)}%</strong></div>
-            <div><span>Status</span><strong>{artigoSelecionado.status}</strong></div>
+            <div><span>Status</span><strong>{statusLabel(artigoSelecionado.status)}</strong></div>
             <div><span>Criado em</span><strong>{artigoSelecionado.criadoEm ? new Date(artigoSelecionado.criadoEm).toLocaleString('pt-BR') : '—'}</strong></div>
           </div>
           {artigoSelecionado.link && <p><a href={artigoSelecionado.link} target="_blank" rel="noreferrer">Abrir link original ↗</a></p>}
           <div className="keywords"><h3>Palavras-chave</h3><div>{(artigoSelecionado.palavrasChave || []).map((keyword) => <span key={keyword}>{keyword}</span>)}</div></div>
+
+          {artigoSelecionado.status === 'PENDENTE_MODERACAO' && (
+            <div className="moderation-panel">
+              <h3>Moderação</h3>
+              <label htmlFor="categoriaCorrigida">Corrigir categoria (opcional)</label>
+              <input id="categoriaCorrigida" value={categoriaCorrigidaInput} onChange={(event) => setCategoriaCorrigidaInput(event.target.value)} placeholder={artigoSelecionado.categoria} />
+              {erroModeracao && <p className="error-message" role="alert">{erroModeracao}</p>}
+              <div className="moderation-actions">
+                <button type="button" className="secondary-button" onClick={() => aplicarModeracao('APROVADO')} disabled={carregandoModeracao}>{carregandoModeracao ? 'Aplicando...' : '✓ Aprovar'}</button>
+                <button type="button" className="danger-button" onClick={() => aplicarModeracao('REJEITADO')} disabled={carregandoModeracao}>{carregandoModeracao ? 'Aplicando...' : '✕ Rejeitar'}</button>
+              </div>
+            </div>
+          )}
+
+          {feedbackHistorico.length > 0 && (
+            <div className="feedback-history">
+              <h3>Histórico de moderação</h3>
+              {feedbackHistorico.map((item) => (
+                <div className="feedback-item" key={item.id}>
+                  <strong>{statusLabel(item.decisao)}</strong> em {new Date(item.decididoEm).toLocaleString('pt-BR')}
+                  {item.categoriaCorrigida ? ` — categoria corrigida para ${categoryLabel(item.categoriaCorrigida)}` : ''}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {erroExclusao && <p className="error-message" role="alert">{erroExclusao}</p>}
+          <div className="details-actions">
+            <button type="button" className="secondary-button" onClick={iniciarEdicao}>✎ Editar conteúdo</button>
+            <button type="button" className="danger-button" onClick={confirmarExclusao} disabled={carregandoExclusao}>{carregandoExclusao ? 'Excluindo...' : '🗑 Excluir'}</button>
+          </div>
         </div>}
+
+        {artigoSelecionado && edicaoAtiva && (
+          <form className="edit-form" onSubmit={salvarEdicao}>
+            <label htmlFor="editTitulo">Título</label>
+            <input id="editTitulo" name="titulo" value={formEdicao.titulo} onChange={atualizarCampoEdicao} required minLength="3" maxLength="200" />
+            <label htmlFor="editTexto">Texto</label>
+            <textarea id="editTexto" name="texto" value={formEdicao.texto} onChange={atualizarCampoEdicao} required minLength="10" rows="6" />
+            <div className="form-grid">
+              <div><label htmlFor="editAutores">Autores</label><input id="editAutores" name="autores" value={formEdicao.autores} onChange={atualizarCampoEdicao} /></div>
+              <div><label htmlFor="editAno">Ano</label><input id="editAno" name="ano" type="number" min="1900" max="2100" value={formEdicao.ano} onChange={atualizarCampoEdicao} /></div>
+            </div>
+            <label htmlFor="editLink">Link</label>
+            <input id="editLink" name="link" type="url" value={formEdicao.link} onChange={atualizarCampoEdicao} />
+            {erroEdicao && <p className="error-message" role="alert">{erroEdicao}</p>}
+            <div className="details-actions">
+              <button type="submit" className="secondary-button" disabled={carregandoEdicao}>{carregandoEdicao ? 'Salvando...' : 'Salvar alterações'}</button>
+              <button type="button" className="ghost-button" onClick={cancelarEdicao} disabled={carregandoEdicao}>Cancelar</button>
+            </div>
+          </form>
+        )}
       </section>}
     </main>
   )

@@ -12,6 +12,9 @@ import org.springframework.web.client.RestClientException;
 import java.util.List;
 import java.util.ArrayList;
 
+/**
+ * @author Diego Pitoco
+ */
 @Component
 public class PredicaoClient implements PredicaoGateway {
     private static final Logger log = LoggerFactory.getLogger(PredicaoClient.class);
@@ -47,13 +50,21 @@ public class PredicaoClient implements PredicaoGateway {
             }
             return response;
         } catch (RestClientException exception) {
+            if (isTimeout(exception)) {
+                throw new MlIntegrationException(
+                        "O serviço de Ciência de Dados demorou demais para responder. Tente novamente.", exception);
+            }
             throw new MlIntegrationException("Não foi possível comunicar com o serviço de ML", exception);
         }
     }
 
-    public PredicaoResponse predizer(String texto) {
-        var partes = texto.split("\\n", 2);
-        return predizer(partes[0], partes.length > 1 ? partes[1] : partes[0]);
+    private static boolean isTimeout(Throwable exception) {
+        for (var atual = exception; atual != null; atual = atual.getCause()) {
+            if (atual instanceof java.net.SocketTimeoutException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private PredicaoResponse mockPrediction(String texto) {
@@ -63,7 +74,7 @@ public class PredicaoClient implements PredicaoGateway {
             adicionais.add("Java");
             adicionais.add("Spring Boot");
             adicionais.add("API REST");
-            return new PredicaoResponse("Backend", 0.89, adicionais, List.of(
+            return new PredicaoResponse("Backend", 0.89, statusMock(0.89), adicionais, List.of(
                     relacionado("104", "Construindo Microsservicos com Java e Spring Cloud", "Backend", 0.91),
                     relacionado("312", "Boas Praticas de Autenticacao JWT em APIs REST", "Ciberseguranca", 0.85),
                     relacionado("58", "Arquitetura de Software em Aplicacoes Java", "Backend", 0.79)));
@@ -71,15 +82,19 @@ public class PredicaoClient implements PredicaoGateway {
         if (textoNormalizado.contains("react") || textoNormalizado.contains("frontend")) {
             adicionais.add("React");
             adicionais.add("JavaScript");
-            return new PredicaoResponse("Frontend", 0.82, adicionais, List.of(
+            return new PredicaoResponse("Frontend", 0.82, statusMock(0.82), adicionais, List.of(
                     relacionado("201", "Componentes reutilizaveis com React", "Frontend", 0.88)));
         }
         if (textoNormalizado.contains("aws") || textoNormalizado.contains("cloud")) {
             adicionais.add("AWS");
-            return new PredicaoResponse("Cloud Computing", 0.76, adicionais, List.of(
+            return new PredicaoResponse("Cloud Computing", 0.76, statusMock(0.76), adicionais, List.of(
                     relacionado("407", "Fundamentos de computacao em nuvem", "Cloud Computing", 0.81)));
         }
-        return new PredicaoResponse("Indefinido", 0.45, adicionais, List.of());
+        return new PredicaoResponse("Indefinido", 0.45, statusMock(0.45), adicionais, List.of());
+    }
+
+    private static String statusMock(double probabilidade) {
+        return probabilidade >= 0.60 ? "APROVADO" : "PENDENTE_MODERACAO";
     }
 
     private br.com.techmind.classificador.dto.ClassificacaoResponse.ArtigoRelacionado relacionado(
@@ -88,17 +103,8 @@ public class PredicaoClient implements PredicaoGateway {
     }
 
     public record PredicaoRequest(String titulo, String resumo) { }
-    public record PredicaoResponse(String categoria, double confianca, String status, List<String> palavrasChave,
+    public record PredicaoResponse(String categoria, double probabilidade, String status, List<String> palavrasChave,
                                    List<br.com.techmind.classificador.dto.ClassificacaoResponse.ArtigoRelacionado> artigosRelacionados) {
-        public PredicaoResponse(String categoria, double confianca, List<String> palavrasChave,
-                                 List<br.com.techmind.classificador.dto.ClassificacaoResponse.ArtigoRelacionado> artigosRelacionados) {
-            this(categoria, confianca, null, palavrasChave, artigosRelacionados);
-        }
-
-        public PredicaoResponse(String categoria, double confianca, List<String> palavrasChave) {
-            this(categoria, confianca, null, palavrasChave, List.of());
-        }
-        public double probabilidade() { return confianca; }
         public List<String> informacoesAdicionais() { return palavrasChave; }
     }
 }

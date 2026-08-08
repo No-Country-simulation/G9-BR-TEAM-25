@@ -1,9 +1,15 @@
 package br.com.techmind.classificador.controller;
 
+import br.com.techmind.classificador.dto.AtualizacaoArtigoRequest;
 import br.com.techmind.classificador.dto.ClassificacaoRequest;
 import br.com.techmind.classificador.dto.ClassificacaoResponse;
+import br.com.techmind.classificador.dto.EstatisticasResponse;
+import br.com.techmind.classificador.dto.FeedbackResponse;
+import br.com.techmind.classificador.dto.ModeracaoRequest;
 import br.com.techmind.classificador.dto.PaginaArtigosResponse;
 import br.com.techmind.classificador.service.ArtigoService;
+
+import java.util.List;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +24,9 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import java.util.Map;
 import br.com.techmind.classificador.dto.ArtigoResponse;
 
+/**
+ * @author Diego Pitoco
+ */
 @RestController
 @RequestMapping("/api/artigos")
 @Tag(name = "Artigos", description = "Classificação automática de artigos técnicos")
@@ -69,7 +78,7 @@ public class ArtigoController {
         return ResponseEntity.ok(artigoService.listar(page, size, sort, titulo, categoria, status, palavraChave));
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/{id:\\d+}")
     @Operation(summary = "Busca uma classificação salva")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Classificação encontrada"),
@@ -77,6 +86,62 @@ public class ArtigoController {
     })
     public ResponseEntity<ArtigoResponse> buscar(@PathVariable Long id) {
         return ResponseEntity.ok(artigoService.buscar(id));
+    }
+
+    @PutMapping("/{id:\\d+}")
+    @Operation(summary = "Edita título, texto, autores, link e ano de um conteúdo",
+            description = "Não reclassifica o conteúdo — categoria e status seguem as regras da IA/moderação.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Conteúdo atualizado"),
+            @ApiResponse(responseCode = "400", description = "Dados inválidos"),
+            @ApiResponse(responseCode = "404", description = "Conteúdo não encontrado")
+    })
+    public ResponseEntity<ArtigoResponse> atualizar(@PathVariable Long id,
+                                                     @Valid @RequestBody AtualizacaoArtigoRequest request) {
+        return ResponseEntity.ok(artigoService.atualizar(id, request));
+    }
+
+    @DeleteMapping("/{id:\\d+}")
+    @Operation(summary = "Exclui um conteúdo classificado")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Conteúdo excluído"),
+            @ApiResponse(responseCode = "404", description = "Conteúdo não encontrado")
+    })
+    public ResponseEntity<Void> excluir(@PathVariable Long id) {
+        artigoService.excluir(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id:\\d+}/moderacao")
+    @Operation(summary = "Aplica decisão humana de moderação",
+            description = "Somente para conteúdos em PENDENTE_MODERACAO. Aceita correção opcional de categoria. "
+                    + "Não chama novamente a IA.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Moderação aplicada"),
+            @ApiResponse(responseCode = "400", description = "Decisão inválida ou transição de status inválida"),
+            @ApiResponse(responseCode = "404", description = "Conteúdo não encontrado")
+    })
+    public ResponseEntity<ArtigoResponse> moderar(@PathVariable Long id,
+                                                   @Valid @RequestBody ModeracaoRequest request) {
+        return ResponseEntity.ok(artigoService.moderar(id, request));
+    }
+
+    @GetMapping("/{id:\\d+}/feedback")
+    @Operation(summary = "Lista o histórico de decisões humanas de moderação de um conteúdo")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Histórico de feedback"),
+            @ApiResponse(responseCode = "404", description = "Conteúdo não encontrado")
+    })
+    public ResponseEntity<List<FeedbackResponse>> feedback(@PathVariable Long id) {
+        return ResponseEntity.ok(artigoService.buscarFeedback(id));
+    }
+
+    @GetMapping("/estatisticas")
+    @Operation(summary = "Estatísticas globais dos conteúdos classificados",
+            description = "Calculadas no banco sobre todos os registros, não apenas a página carregada.")
+    @ApiResponse(responseCode = "200", description = "Estatísticas globais")
+    public ResponseEntity<EstatisticasResponse> estatisticas() {
+        return ResponseEntity.ok(artigoService.estatisticas());
     }
 
     @GetMapping("/health")

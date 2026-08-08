@@ -2,6 +2,8 @@ package br.com.techmind.classificador.exception;
 
 import br.com.techmind.classificador.dto.ErroResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -12,8 +14,12 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 import java.time.Instant;
 
+/**
+ * @author Diego Pitoco
+ */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     @ExceptionHandler(MlIntegrationException.class)
     public ResponseEntity<ErroResponse> ml(MlIntegrationException ex, HttpServletRequest request) {
         return response(HttpStatus.BAD_GATEWAY, "Erro de integração ML", ex.getMessage(), request);
@@ -46,6 +52,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RegistroNotFoundException.class)
     public ResponseEntity<ErroResponse> notFound(RegistroNotFoundException ex, HttpServletRequest request) {
         return response(HttpStatus.NOT_FOUND, "Registro não encontrado", ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErroResponse> erroInesperado(Exception ex, HttpServletRequest request) {
+        log.error("Erro inesperado ao processar {} {}", request.getMethod(), request.getRequestURI(), ex);
+        return response(HttpStatus.INTERNAL_SERVER_ERROR, "Erro inesperado",
+                "Não foi possível concluir a operação no momento. Tente novamente.", request);
     }
 
     private ResponseEntity<ErroResponse> response(HttpStatus status, String error, String message, HttpServletRequest request) {

@@ -2,8 +2,13 @@ package br.com.techmind.classificador.repository;
 
 import br.com.techmind.classificador.entity.ArtigoClassificado;
 import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import org.springframework.data.jpa.domain.Specification;
 
+/**
+ * @author Diego Pitoco
+ */
 public final class ArtigoSpecifications {
 
     private ArtigoSpecifications() { }
@@ -22,9 +27,13 @@ public final class ArtigoSpecifications {
 
     public static Specification<ArtigoClassificado> palavraChaveContem(String palavraChave) {
         return (root, query, cb) -> {
-            query.distinct(true);
-            Join<ArtigoClassificado, String> informacoes = root.join("informacoesAdicionais");
-            return cb.like(cb.lower(informacoes), "%" + palavraChave.toLowerCase() + "%");
+            Subquery<Long> subquery = query.subquery(Long.class);
+            Root<ArtigoClassificado> subRoot = subquery.from(ArtigoClassificado.class);
+            Join<ArtigoClassificado, String> informacoes = subRoot.join("informacoesAdicionais");
+            subquery.select(subRoot.get("id"))
+                    .where(cb.equal(subRoot.get("id"), root.get("id")),
+                            cb.like(cb.lower(informacoes), "%" + palavraChave.toLowerCase() + "%"));
+            return cb.exists(subquery);
         };
     }
 }

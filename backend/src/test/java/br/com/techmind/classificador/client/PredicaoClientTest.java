@@ -21,12 +21,15 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+/**
+ * @author Diego Pitoco
+ */
 class PredicaoClientTest {
 
     private static final String RESPOSTA_COMPLETA = """
             {
               "categoria": "Backend",
-              "confianca": 0.87,
+              "probabilidade": 0.87,
               "status": "APROVADO",
               "palavrasChave": ["Java", "Spring Boot"],
               "artigosRelacionados": [
@@ -64,16 +67,36 @@ class PredicaoClientTest {
     }
 
     @Test
-    void deveLerCategoriaConfiancaStatusEPalavrasChave() {
+    void deveLerCategoriaProbabilidadeStatusEPalavrasChave() {
         server.expect(requestTo("http://ml-service.test/api/v1/artigos/processar-completo"))
                 .andRespond(withSuccess(RESPOSTA_COMPLETA, MediaType.APPLICATION_JSON));
 
         var resposta = client.predizer("Spring Boot", "Artigo sobre APIs Java");
 
         assertEquals("Backend", resposta.categoria());
-        assertEquals(0.87, resposta.confianca());
+        assertEquals(0.87, resposta.probabilidade());
         assertEquals("APROVADO", resposta.status());
         assertEquals(java.util.List.of("Java", "Spring Boot"), resposta.palavrasChave());
+    }
+
+    @Test
+    void devePreservarStatusPendenteModeracaoRecebidoDaApi() {
+        var respostaComPendenteModeracao = """
+                {
+                  "categoria": "Indefinido",
+                  "probabilidade": 0.95,
+                  "status": "PENDENTE_MODERACAO",
+                  "palavrasChave": [],
+                  "artigosRelacionados": []
+                }
+                """;
+        server.expect(requestTo("http://ml-service.test/api/v1/artigos/processar-completo"))
+                .andRespond(withSuccess(respostaComPendenteModeracao, MediaType.APPLICATION_JSON));
+
+        var resposta = client.predizer("Spring Boot", "Artigo sobre APIs Java");
+
+        assertEquals("PENDENTE_MODERACAO", resposta.status());
+        assertEquals(0.95, resposta.probabilidade());
     }
 
     @Test
@@ -115,6 +138,18 @@ class PredicaoClientTest {
 
         assertThrows(MlIntegrationException.class,
                 () -> client.predizer("Spring Boot", "Artigo sobre APIs Java"));
+    }
+
+    @Test
+    void deveLancarMensagemEspecificaDeTimeoutQuandoServicoDemorarDemais() {
+        server.expect(requestTo("http://ml-service.test/api/v1/artigos/processar-completo"))
+                .andRespond(request -> { throw new java.net.SocketTimeoutException("Read timed out"); });
+
+        var exception = assertThrows(MlIntegrationException.class,
+                () -> client.predizer("Spring Boot", "Artigo sobre APIs Java"));
+
+        assertEquals("O serviço de Ciência de Dados demorou demais para responder. Tente novamente.",
+                exception.getMessage());
     }
 
     @Test

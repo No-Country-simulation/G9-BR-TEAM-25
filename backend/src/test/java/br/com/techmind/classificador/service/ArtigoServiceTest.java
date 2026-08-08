@@ -2,10 +2,14 @@ package br.com.techmind.classificador.service;
 
 import br.com.techmind.classificador.client.PredicaoGateway;
 import br.com.techmind.classificador.client.PredicaoClient;
+import br.com.techmind.classificador.dto.AtualizacaoArtigoRequest;
 import br.com.techmind.classificador.dto.ClassificacaoRequest;
+import br.com.techmind.classificador.dto.ModeracaoRequest;
 import br.com.techmind.classificador.entity.ArtigoClassificado;
+import br.com.techmind.classificador.entity.ArtigoFeedback;
 import br.com.techmind.classificador.exception.ParametroInvalidoException;
 import br.com.techmind.classificador.exception.RegistroNotFoundException;
+import br.com.techmind.classificador.repository.ArtigoFeedbackRepository;
 import br.com.techmind.classificador.repository.ArtigoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,11 +26,16 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * @author Diego Pitoco
+ */
 @ExtendWith(MockitoExtension.class)
 class ArtigoServiceTest {
 
@@ -36,18 +45,21 @@ class ArtigoServiceTest {
     @Mock
     private ArtigoRepository artigoRepository;
 
+    @Mock
+    private ArtigoFeedbackRepository artigoFeedbackRepository;
+
     private ArtigoService artigoService;
 
     @BeforeEach
     void setUp() {
-        artigoService = new ArtigoService(predicaoClient, artigoRepository, 100);
+        artigoService = new ArtigoService(predicaoClient, artigoRepository, artigoFeedbackRepository, 100);
     }
 
     @Test
-    void deveClassificarComoAprovadoEGuardarTextoNormalizado() {
+    void deveClassificarComoAprovadoEGuardarTextoOriginal() {
         var predicao = new PredicaoClient.PredicaoResponse(
-                "Backend", 0.89, List.of("Java", "Spring Boot"));
-        when(predicaoClient.predizer("Spring Boot\nArtigo sobre Java"))
+                "Backend", 0.89, "APROVADO", List.of("Java", "Spring Boot"), List.of());
+        when(predicaoClient.predizer("Spring Boot", "Artigo sobre Java"))
                 .thenReturn(predicao);
         when(artigoRepository.save(any(ArtigoClassificado.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -67,16 +79,60 @@ class ArtigoServiceTest {
     }
 
     @Test
-    void deveClassificarComoPendenteQuandoProbabilidadeForMenorQueLimiar() {
-        when(predicaoClient.predizer(any()))
-                .thenReturn(new PredicaoClient.PredicaoResponse("Indefinido", 0.69, null));
+    void deveNormalizarTituloETextoAntesDeEnviarAoServicoDeMl() {
+        when(predicaoClient.predizer("Spring Boot em producao", "Artigo sobre \"Java\" e Docker"))
+                .thenReturn(new PredicaoClient.PredicaoResponse("Backend", 0.89, "APROVADO", List.of(), List.of()));
+        when(artigoRepository.save(any(ArtigoClassificado.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        artigoService.classificar(new ClassificacaoRequest(
+                "Spring Boot  em\nproducao", "Artigo sobre  \"Java\"\r\ne   Docker"));
+
+        verify(predicaoClient).predizer("Spring Boot em producao", "Artigo sobre \"Java\" e Docker");
+    }
+
+    @Test
+    void devePreservarStatusAprovadoRecebidoDaApiMesmoComProbabilidadeBaixa() {
+        when(predicaoClient.predizer(any(), any()))
+                .thenReturn(new PredicaoClient.PredicaoResponse("Indefinido", 0.10, "APROVADO", List.of(), List.of()));
         when(artigoRepository.save(any(ArtigoClassificado.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         var resposta = artigoService.classificar(new ClassificacaoRequest("Título", "Texto"));
 
-        assertEquals("PENDENTE", resposta.status());
-        assertEquals(List.of(), resposta.informacoesAdicionais());
+        assertEquals("APROVADO", resposta.status());
+        assertEquals(0.10, resposta.probabilidade());
+    }
+
+    @Test
+    void devePreservarStatusPendenteModeracaoRecebidoDaApiMesmoComProbabilidadeAlta() {
+        when(predicaoClient.predizer(any(), any()))
+                .thenReturn(new PredicaoClient.PredicaoResponse("Indefinido", 0.95, "PENDENTE_MODERACAO", List.of(), List.of()));
+        when(artigoRepository.save(any(ArtigoClassificado.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var resposta = artigoService.classificar(new ClassificacaoRequest("Título", "Texto"));
+
+        assertEquals("PENDENTE_MODERACAO", resposta.status());
+        assertEquals(0.95, resposta.probabilidade());
+    }
+
+    @Test
+    void deveAceitarStatusPendenteModeracaoNoFiltroDeListagem() {
+        var pageable = PageRequest.of(0, 10);
+        when(artigoRepository.findAll(any(Specification.class), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        artigoService.listar(0, 10, null, null, null, "PENDENTE_MODERACAO", null);
+    }
+
+    @Test
+    void deveAceitarStatusRejeitadoNoFiltroDeListagem() {
+        var pageable = PageRequest.of(0, 10);
+        when(artigoRepository.findAll(any(Specification.class), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        artigoService.listar(0, 10, null, null, null, "REJEITADO", null);
     }
 
     @Test
@@ -153,6 +209,7 @@ class ArtigoServiceTest {
 
         assertEquals("Título", resposta.titulo());
         assertEquals("Cloud", resposta.categoria());
+        assertEquals("Cloud", resposta.categoriaOriginal());
     }
 
     @Test
@@ -160,5 +217,193 @@ class ArtigoServiceTest {
         when(artigoRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThrows(RegistroNotFoundException.class, () -> artigoService.buscar(99L));
+    }
+
+    // ---- Moderação ----
+
+    @Test
+    void deveAprovarArtigoPendenteDeModeracaoESalvarFeedback() {
+        var artigo = new ArtigoClassificado("Título", "Texto", "Mobile Development", 0.24,
+                "PENDENTE_MODERACAO", List.of());
+        when(artigoRepository.findById(5L)).thenReturn(Optional.of(artigo));
+
+        var resposta = artigoService.moderar(5L, new ModeracaoRequest("APROVADO", null));
+
+        assertEquals("APROVADO", resposta.status());
+        assertEquals("Mobile Development", resposta.categoria());
+        verify(artigoRepository).save(artigo);
+
+        var captor = ArgumentCaptor.forClass(ArtigoFeedback.class);
+        verify(artigoFeedbackRepository).save(captor.capture());
+        assertEquals("APROVADO", captor.getValue().getDecisao());
+        assertEquals("Mobile Development", captor.getValue().getCategoriaOriginal());
+        assertNull(captor.getValue().getCategoriaCorrigida());
+    }
+
+    @Test
+    void deveRejeitarArtigoPendenteDeModeracao() {
+        var artigo = new ArtigoClassificado("Título", "Texto", "Indefinido", 0.30,
+                "PENDENTE_MODERACAO", List.of());
+        when(artigoRepository.findById(9L)).thenReturn(Optional.of(artigo));
+
+        var resposta = artigoService.moderar(9L, new ModeracaoRequest("REJEITADO", null));
+
+        assertEquals("REJEITADO", resposta.status());
+    }
+
+    @Test
+    void deveCorrigirCategoriaAoAprovarPreservandoCategoriaOriginal() {
+        var artigo = new ArtigoClassificado("Título", "Texto", "Mobile Development", 0.24,
+                "PENDENTE_MODERACAO", List.of());
+        when(artigoRepository.findById(5L)).thenReturn(Optional.of(artigo));
+
+        var resposta = artigoService.moderar(5L, new ModeracaoRequest("APROVADO", "Backend Development"));
+
+        assertEquals("Backend Development", resposta.categoria());
+        assertEquals("Mobile Development", resposta.categoriaOriginal());
+
+        var captor = ArgumentCaptor.forClass(ArtigoFeedback.class);
+        verify(artigoFeedbackRepository).save(captor.capture());
+        assertEquals("Mobile Development", captor.getValue().getCategoriaOriginal());
+        assertEquals("Backend Development", captor.getValue().getCategoriaCorrigida());
+    }
+
+    @Test
+    void deveLancarExcecaoAoModerarArtigoQueNaoEstaPendenteDeModeracao() {
+        var artigo = new ArtigoClassificado("Título", "Texto", "Backend", 0.89, "APROVADO", List.of());
+        when(artigoRepository.findById(3L)).thenReturn(Optional.of(artigo));
+
+        assertThrows(ParametroInvalidoException.class,
+                () -> artigoService.moderar(3L, new ModeracaoRequest("REJEITADO", null)));
+        verify(artigoRepository, never()).save(any());
+        verify(artigoFeedbackRepository, never()).save(any());
+    }
+
+    @Test
+    void deveLancarExcecaoQuandoDecisaoDeModeracaoForInvalida() {
+        var artigo = new ArtigoClassificado("Título", "Texto", "Backend", 0.50, "PENDENTE_MODERACAO", List.of());
+        when(artigoRepository.findById(4L)).thenReturn(Optional.of(artigo));
+
+        assertThrows(ParametroInvalidoException.class,
+                () -> artigoService.moderar(4L, new ModeracaoRequest("PENDENTE_MODERACAO", null)));
+    }
+
+    @Test
+    void deveLancarExcecaoAoModerarArtigoInexistente() {
+        when(artigoRepository.findById(404L)).thenReturn(Optional.empty());
+
+        assertThrows(RegistroNotFoundException.class,
+                () -> artigoService.moderar(404L, new ModeracaoRequest("APROVADO", null)));
+    }
+
+    // ---- Edição ----
+
+    @Test
+    void deveAtualizarConteudoSemAlterarCategoriaOuStatus() {
+        var artigo = new ArtigoClassificado("Título antigo", "Texto antigo", "Backend", 0.89,
+                "APROVADO", List.of());
+        when(artigoRepository.findById(1L)).thenReturn(Optional.of(artigo));
+
+        var resposta = artigoService.atualizar(1L, new AtualizacaoArtigoRequest(
+                "  Título novo  ", "  Texto novo com conteúdo suficiente  ", "Novo Autor", "https://novo.com", 2027));
+
+        assertEquals("Título novo", resposta.titulo());
+        assertEquals("Texto novo com conteúdo suficiente", resposta.texto());
+        assertEquals("Novo Autor", resposta.autores());
+        assertEquals("Backend", resposta.categoria());
+        assertEquals("APROVADO", resposta.status());
+        verify(artigoRepository).save(artigo);
+        verify(predicaoClient, never()).predizer(any(), any());
+    }
+
+    @Test
+    void deveLancarExcecaoAoAtualizarArtigoInexistente() {
+        when(artigoRepository.findById(404L)).thenReturn(Optional.empty());
+
+        assertThrows(RegistroNotFoundException.class, () -> artigoService.atualizar(404L,
+                new AtualizacaoArtigoRequest("Título válido", "Texto com conteúdo suficiente", null, null, null)));
+    }
+
+    // ---- Exclusão ----
+
+    @Test
+    void deveExcluirArtigoExistente() {
+        when(artigoRepository.existsById(1L)).thenReturn(true);
+
+        artigoService.excluir(1L);
+
+        verify(artigoRepository).deleteById(1L);
+    }
+
+    @Test
+    void deveLancarExcecaoAoExcluirArtigoInexistente() {
+        when(artigoRepository.existsById(404L)).thenReturn(false);
+
+        assertThrows(RegistroNotFoundException.class, () -> artigoService.excluir(404L));
+        verify(artigoRepository, never()).deleteById(any());
+    }
+
+    // ---- Estatísticas ----
+
+    @Test
+    void deveCalcularEstatisticasGlobais() {
+        when(artigoRepository.count()).thenReturn(6L);
+        when(artigoRepository.contarPorStatus()).thenReturn(List.of(
+                contagem("APROVADO", 3), contagem("PENDENTE_MODERACAO", 2), contagem("REJEITADO", 1)));
+        when(artigoRepository.contarPorCategoria()).thenReturn(List.of(
+                contagem("Backend", 4), contagem("Frontend", 2)));
+        when(artigoRepository.calcularConfiancaMedia()).thenReturn(0.735);
+
+        var estatisticas = artigoService.estatisticas();
+
+        assertEquals(6, estatisticas.total());
+        assertEquals(3, estatisticas.aprovados());
+        assertEquals(2, estatisticas.pendentesModeracao());
+        assertEquals(1, estatisticas.rejeitados());
+        assertEquals(2, estatisticas.quantidadeCategorias());
+        assertEquals(0.735, estatisticas.confiancaMedia());
+        assertEquals(4L, estatisticas.distribuicaoPorCategoria().get("Backend"));
+    }
+
+    @Test
+    void deveRetornarEstatisticasZeradasQuandoNaoHaArtigos() {
+        when(artigoRepository.count()).thenReturn(0L);
+        when(artigoRepository.contarPorStatus()).thenReturn(List.of());
+        when(artigoRepository.contarPorCategoria()).thenReturn(List.of());
+        when(artigoRepository.calcularConfiancaMedia()).thenReturn(null);
+
+        var estatisticas = artigoService.estatisticas();
+
+        assertEquals(0, estatisticas.total());
+        assertEquals(0.0, estatisticas.confiancaMedia());
+    }
+
+    // ---- Feedback ----
+
+    @Test
+    void deveListarFeedbackDoArtigo() {
+        when(artigoRepository.existsById(5L)).thenReturn(true);
+        when(artigoFeedbackRepository.findByArtigoIdOrderByDecididoEmDesc(5L)).thenReturn(List.of(
+                new ArtigoFeedback(5L, "Mobile Development", "Backend Development", 0.24, "APROVADO")));
+
+        var feedback = artigoService.buscarFeedback(5L);
+
+        assertEquals(1, feedback.size());
+        assertEquals("APROVADO", feedback.get(0).decisao());
+        assertEquals("Backend Development", feedback.get(0).categoriaCorrigida());
+    }
+
+    @Test
+    void deveLancarExcecaoAoBuscarFeedbackDeArtigoInexistente() {
+        when(artigoRepository.existsById(404L)).thenReturn(false);
+
+        assertThrows(RegistroNotFoundException.class, () -> artigoService.buscarFeedback(404L));
+    }
+
+    private static ArtigoRepository.ContagemProjecao contagem(String chave, long total) {
+        return new ArtigoRepository.ContagemProjecao() {
+            public String getChave() { return chave; }
+            public long getTotal() { return total; }
+        };
     }
 }

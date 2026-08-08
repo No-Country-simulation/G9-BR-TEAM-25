@@ -15,6 +15,9 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * @author Diego Pitoco
+ */
 @Entity
 @Table(name = "artigos_classificados")
 public class ArtigoClassificado {
@@ -37,6 +40,9 @@ public class ArtigoClassificado {
 
     @Column(nullable = false, length = 80)
     private String categoria;
+
+    @Column(name = "categoria_original", length = 80)
+    private String categoriaOriginal;
 
     @Column(nullable = false)
     private double probabilidade;
@@ -65,6 +71,7 @@ public class ArtigoClassificado {
         this.titulo = titulo;
         this.texto = texto;
         this.categoria = categoria;
+        this.categoriaOriginal = categoria;
         this.probabilidade = probabilidade;
         this.status = status;
         this.informacoesAdicionais = new ArrayList<>(informacoesAdicionais);
@@ -81,8 +88,25 @@ public class ArtigoClassificado {
     public String getLink() { return link; }
     public Integer getAno() { return ano; }
     public String getCategoria() { return categoria; }
+    public String getCategoriaOriginal() { return categoriaOriginal; }
     public double getProbabilidade() { return probabilidade; }
     public String getStatus() { return status; }
     public List<String> getInformacoesAdicionais() { return List.copyOf(informacoesAdicionais); }
     public LocalDateTime getCriadoEm() { return criadoEm; }
+
+    public void corrigirCategoria(String novaCategoria) {
+        this.categoria = novaCategoria;
+    }
+
+    public void alterarStatus(String novoStatus) {
+        this.status = novoStatus;
+    }
+
+    public void atualizarConteudo(String titulo, String texto, String autores, String link, Integer ano) {
+        this.titulo = titulo;
+        this.texto = texto;
+        this.autores = autores;
+        this.link = link;
+        this.ano = ano;
+    }
 }

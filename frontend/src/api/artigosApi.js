@@ -1,3 +1,8 @@
+/**
+ * TechMind - Integração do frontend com a API de artigos.
+ *
+ * @author Diego Pitoco
+ */
 const API_URL = import.meta.env.VITE_API_URL || ''
 
 async function extrairMensagemDeErro(response) {
@@ -59,4 +64,32 @@ export function classificarArtigo(payload) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
+}
+
+export function atualizarArtigo(id, payload) {
+  return request(`/api/artigos/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+export function excluirArtigo(id) {
+  return request(`/api/artigos/${id}`, { method: 'DELETE' })
+}
+
+export function moderarArtigo(id, { decisao, categoriaCorrigida }) {
+  return request(`/api/artigos/${id}/moderacao`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ decisao, categoriaCorrigida: categoriaCorrigida || null }),
+  })
+}
+
+export function buscarFeedback(id) {
+  return request(`/api/artigos/${id}/feedback`)
+}
+
+export function buscarEstatisticas() {
+  return request('/api/artigos/estatisticas')
 }
