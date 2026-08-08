@@ -69,14 +69,9 @@ Serviço em Python/FastAPI (`techmind-ai-service/`), mantido pela equipe de Ciê
 - **Sanitização de texto**: o próprio serviço remove quebras de linha e espaços duplicados antes de processar — o backend Java faz a mesma normalização antes de enviar, como camada extra de proteção.
 - **Retreinamento**: existe um endpoint (`POST /api/v1/modelo/retreinar`), mas ele apenas dispara uma tarefa em background que registra a intenção em log — não há lógica de retreinamento implementada, e o backend nunca chama esse endpoint. Não é uma funcionalidade entregue, apenas um placeholder no serviço de IA.
 
-**Divergência confirmada entre o repositório e o serviço validado nos testes:**
+**Observação técnica:** existe uma diferença de contrato entre a versão do serviço de Data Science atualmente versionada neste repositório e a versão utilizada na validação ponta a ponta do projeto — o backend foi implementado para o contrato validado. O backend sempre consome esse serviço exclusivamente via HTTP; nenhum arquivo da equipe de Data Science foi alterado.
 
-- **Versão presente neste repositório** (`techmind-ai-service/main.py`): devolve o campo `confianca` no JSON de resposta e não expõe nenhum endpoint `/health`.
-- **Versão utilizada na validação ponta a ponta** (executada localmente, fora deste repositório): respondeu ao contrato com o campo `probabilidade` e respondeu com sucesso a `GET /health` → `{"status":"healthy","service":"techmind-ai-service","model_loaded":true}`.
-
-O backend Java foi implementado para o contrato oficial (`probabilidade`) e expõe esse mesmo valor ao frontend através do seu próprio DTO de resposta, onde ele aparece como `confianca` — são dois contratos distintos (externo IA↔Backend e interno Backend↔Frontend) para o mesmo dado, não uma renomeação acidental. A divergência entre o `main.py` versionado e o serviço realmente validado é registrada aqui como observação técnica; nenhum arquivo da equipe de Data Science foi alterado para investigar ou corrigi-la — o backend sempre consome esse serviço exclusivamente via HTTP.
-
-**Docker:** este repositório tem dois `Dockerfile` — `backend/Dockerfile` (empacota o backend Java) e `backend/ml-service/Dockerfile` (empacota um sidecar Python local simplificado, usado só em desenvolvimento). O `docker-compose.yml` sobe apenas esses dois serviços; ele reaproveita o arquivo do modelo (`classificador_techmind.pkl`) via volume, mas **não** sobe o serviço real de Data Science — `techmind-ai-service/` não tem `Dockerfile` neste repositório, e o contrato de resposta do sidecar local não inclui os campos `status` nem `probabilidade`. Ou seja, `docker compose up` não equivale a rodar a stack completa validada com o serviço real de IA.
+**Docker:** o `docker-compose.yml` deste repositório utiliza um sidecar Python simplificado (`backend/ml-service`) para fins de desenvolvimento local — ele não representa integralmente o serviço de Data Science utilizado na validação ponta a ponta.
 
 ## Banco de dados
 
@@ -149,7 +144,7 @@ TechMind/
 
 ### Data Science
 
-A versão atualmente presente neste repositório não documenta um comando oficial de inicialização deste serviço (não há `Dockerfile`, script ou README próprio em `techmind-ai-service/`). Para executá-lo localmente, é necessário confirmar o comando com a equipe de Ciência de Dados.
+A inicialização do serviço completo de Data Science não está automatizada nem documentada nesta versão do repositório (não há `Dockerfile`, script ou README próprio em `techmind-ai-service/`). Por esse motivo, este README não apresenta um comando de inicialização não validado.
 
 ### Backend
 
