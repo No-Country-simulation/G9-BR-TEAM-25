@@ -21,6 +21,7 @@ const initialForm = { titulo: '', texto: '', autores: '', link: '', ano: '' }
 const initialFiltros = { titulo: '', categoria: '', status: '', palavraChave: '' }
 const initialFormEdicao = { titulo: '', texto: '', autores: '', link: '', ano: '' }
 const TAMANHO_PAGINA = 10
+const EXIBIR_MODERACAO = false
 
 function App() {
   const [form, setForm] = useState(initialForm)
@@ -174,6 +175,17 @@ function App() {
     setEdicaoAtiva(false)
   }
 
+  function limparFormulario() {
+    setForm(initialForm)
+    setErroClassificacao('')
+  }
+
+  function iniciarNovoConteudo() {
+    limparFormulario()
+    setResult(null)
+    document.getElementById('titulo')?.focus()
+  }
+
   async function classify(event) {
     event.preventDefault()
     if (carregandoClassificacao) {
@@ -188,6 +200,7 @@ function App() {
       const data = await classificarArtigo(payload)
       setApiOnline(true)
       setResult(data)
+      limparFormulario()
       await carregarArtigos(paginaAtual, filtros)
       await carregarEstatisticas()
     } catch (requestError) {
@@ -285,19 +298,23 @@ function App() {
         <div className="top-actions"><span className={`api-status ${apiOnline ? '' : 'offline'}`} title="Verifica apenas a disponibilidade do backend Java"><i /> API {apiOnline ? 'online' : 'offline'}</span><a href={import.meta.env.VITE_SWAGGER_URL || 'http://localhost:8080/swagger-ui.html'} target="_blank" rel="noreferrer">? Swagger</a><span className="user">Equipe<br /><small>TechMind</small></span></div>
       </header>
 
-      <nav className="content-nav" aria-label="Navegação principal"><span className="nav-indicator" aria-current="page">▱ Meus conteúdos</span></nav>
+      <nav className="content-nav" aria-label="Navegação principal"><span className="nav-indicator" aria-current="page">▱ Acervo</span></nav>
 
       <section className="hero">
         <div><p className="eyebrow">CENTRAL DE CONHECIMENTO</p><h1>Conteúdos <em>inteligentes</em></h1><p className="subtitle">Classifique conteúdos técnicos, descubra palavras-chave e encontre materiais relacionados.</p></div>
-        <button className="new-content" onClick={() => document.getElementById('titulo')?.focus()}>＋ Novo conteúdo</button>
+        <button className="new-content" onClick={iniciarNovoConteudo}>＋ Novo conteúdo</button>
       </section>
 
       <section className="metrics">
         <div><span>TOTAL DE CONTEÚDOS</span><strong>{estatisticas ? estatisticas.total : '—'}</strong><small>Global (Oracle)</small></div>
-        <div><span>APROVADOS</span><strong>{estatisticas ? estatisticas.aprovados : '—'}</strong><small>Status atual</small></div>
-        <div><span>PENDENTES</span><strong>{estatisticas ? estatisticas.pendentesModeracao : '—'}</strong><small>Aguardando moderação</small></div>
-        <div><span>REJEITADOS</span><strong>{estatisticas ? estatisticas.rejeitados : '—'}</strong><small>Status atual</small></div>
-        <div><span>CATEGORIAS</span><strong>{estatisticas ? estatisticas.quantidadeCategorias : '—'}</strong><small>Distintas</small></div>
+        {EXIBIR_MODERACAO && (
+          <>
+            <div><span>APROVADOS</span><strong>{estatisticas ? estatisticas.aprovados : '—'}</strong><small>Status atual</small></div>
+            <div><span>PENDENTES</span><strong>{estatisticas ? estatisticas.pendentesModeracao : '—'}</strong><small>Aguardando moderação</small></div>
+            <div><span>REJEITADOS</span><strong>{estatisticas ? estatisticas.rejeitados : '—'}</strong><small>Status atual</small></div>
+          </>
+        )}
+        <div><span>CATEGORIAS UTILIZADAS</span><strong>{estatisticas ? estatisticas.quantidadeCategorias : '—'}</strong><small>Distintas</small></div>
         <div className="highlight"><span>CONFIANÇA MÉDIA</span><strong>{estatisticas ? `${Math.round(estatisticas.confiancaMedia * 100)}%` : '—'}</strong><small>Global</small></div>
       </section>
 
@@ -343,7 +360,7 @@ function App() {
             <div className="category">{categoryLabel(result.categoria)}</div>
             <div className="confidence-row"><span>Confiança</span><strong>{Math.round(result.confianca * 100)}%</strong></div>
             <div className="progress"><span style={{ width: `${result.confianca * 100}%` }} /></div>
-            <div className={`status ${result.status?.toLowerCase()}`}>{statusLabel(result.status)}</div>
+            {EXIBIR_MODERACAO && <div className={`status ${result.status?.toLowerCase()}`}>{statusLabel(result.status)}</div>}
             <div className="keywords"><h3>Palavras-chave</h3><div>{(result.palavrasChave || []).map((keyword) => <span key={keyword}>{keyword}</span>)}</div></div>
             <div className="related">
               <h3>Conteúdos relacionados</h3>
@@ -365,15 +382,17 @@ function App() {
           <div className="filters-grid">
             <div><label htmlFor="filtroTitulo">Título</label><input id="filtroTitulo" name="titulo" value={filtros.titulo} onChange={atualizarFiltro} placeholder="Buscar por título" /></div>
             <div><label htmlFor="filtroCategoria">Categoria</label><input id="filtroCategoria" name="categoria" value={filtros.categoria} onChange={atualizarFiltro} placeholder="Ex.: Backend" /></div>
-            <div>
-              <label htmlFor="filtroStatus">Status</label>
-              <select id="filtroStatus" name="status" value={filtros.status} onChange={atualizarFiltro}>
-                <option value="">Todos</option>
-                <option value="APROVADO">Aprovado</option>
-                <option value="PENDENTE_MODERACAO">Pendente de moderação</option>
-                <option value="REJEITADO">Rejeitado</option>
-              </select>
-            </div>
+            {EXIBIR_MODERACAO && (
+              <div>
+                <label htmlFor="filtroStatus">Status</label>
+                <select id="filtroStatus" name="status" value={filtros.status} onChange={atualizarFiltro}>
+                  <option value="">Todos</option>
+                  <option value="APROVADO">Aprovado</option>
+                  <option value="PENDENTE_MODERACAO">Pendente de moderação</option>
+                  <option value="REJEITADO">Rejeitado</option>
+                </select>
+              </div>
+            )}
             <div><label htmlFor="filtroPalavraChave">Palavra-chave</label><input id="filtroPalavraChave" name="palavraChave" value={filtros.palavraChave} onChange={atualizarFiltro} placeholder="Ex.: java" /></div>
           </div>
           <div className="filters-actions">
@@ -391,7 +410,7 @@ function App() {
             <button type="button" className="history-item" key={item.id} onClick={() => selecionarArtigo(item.id)}>
               <span className="history-icon">↗</span>
               <div><strong>{item.titulo || 'Artigo sem título'}</strong><small>{categoryLabel(item.categoria)}</small></div>
-              {item.status && <span className={`status ${item.status.toLowerCase()}`}>{statusLabel(item.status)}</span>}
+              {EXIBIR_MODERACAO && item.status && <span className={`status ${item.status.toLowerCase()}`}>{statusLabel(item.status)}</span>}
               <b>{item.confianca ? `${Math.round(item.confianca * 100)}%` : '—'}</b>
             </button>
           ))}</div> : <p className="no-history">Nenhuma classificação encontrada com os filtros atuais.</p>
@@ -422,13 +441,13 @@ function App() {
             <div><span>Autores</span><strong>{artigoSelecionado.autores || '—'}</strong></div>
             <div><span>Ano</span><strong>{artigoSelecionado.ano || '—'}</strong></div>
             <div><span>Confiança</span><strong>{Math.round(artigoSelecionado.confianca * 100)}%</strong></div>
-            <div><span>Status</span><strong>{statusLabel(artigoSelecionado.status)}</strong></div>
+            {EXIBIR_MODERACAO && <div><span>Status</span><strong>{statusLabel(artigoSelecionado.status)}</strong></div>}
             <div><span>Criado em</span><strong>{artigoSelecionado.criadoEm ? new Date(artigoSelecionado.criadoEm).toLocaleString('pt-BR') : '—'}</strong></div>
           </div>
           {artigoSelecionado.link && <p><a href={artigoSelecionado.link} target="_blank" rel="noreferrer">Abrir link original ↗</a></p>}
           <div className="keywords"><h3>Palavras-chave</h3><div>{(artigoSelecionado.palavrasChave || []).map((keyword) => <span key={keyword}>{keyword}</span>)}</div></div>
 
-          {artigoSelecionado.status === 'PENDENTE_MODERACAO' && (
+          {EXIBIR_MODERACAO && artigoSelecionado.status === 'PENDENTE_MODERACAO' && (
             <div className="moderation-panel">
               <h3>Moderação</h3>
               <label htmlFor="categoriaCorrigida">Corrigir categoria (opcional)</label>
@@ -441,7 +460,7 @@ function App() {
             </div>
           )}
 
-          {feedbackHistorico.length > 0 && (
+          {EXIBIR_MODERACAO && feedbackHistorico.length > 0 && (
             <div className="feedback-history">
               <h3>Histórico de moderação</h3>
               {feedbackHistorico.map((item) => (
