@@ -45,7 +45,7 @@ Oracle Autonomous Database
 
 ---
 
-# 🏗️ Arquitetura
+### 🏗️ Arquitetura
 
 ```text
                     ┌─────────────────┐
@@ -85,7 +85,7 @@ Em produção, o Frontend e o Backend são executados no **Google Cloud Run**, e
 
 ---
 
-# 📂 Estrutura do projeto
+### 📂 Estrutura do projeto
 
 ```text
 TechMind/
@@ -112,7 +112,7 @@ TechMind/
 
 ---
 
-# ⚙️ Dependências e versões
+### ⚙️ Dependências e versões
 
 ## Backend
 
@@ -166,7 +166,7 @@ As versões não especificadas acima são definidas pelos arquivos de dependênc
 
 ---
 
-# 🚀 Como executar o projeto
+### 🚀 Como executar o projeto
 
 ## Pré-requisitos
 
@@ -181,7 +181,7 @@ Instale:
 
 ---
 
-# 1. Executar o Backend
+### 1. Executar o Backend
 
 Entre na pasta:
 
@@ -201,7 +201,7 @@ O Backend utiliza a porta `8080` por padrão.
 
 ---
 
-# 2. Executar o Frontend
+### 2. Executar o Frontend
 
 Entre na pasta:
 
@@ -231,7 +231,7 @@ Durante o desenvolvimento, as chamadas `/api` são encaminhadas pelo proxy do Vi
 
 ---
 
-# 3. Executar o serviço de Data Science
+### 3. Executar o serviço de Data Science
 
 Entre na pasta:
 
@@ -286,7 +286,7 @@ config_classificador.json
 
 ---
 
-# 🐳 Executar com Docker
+### 🐳 Executar com Docker
 
 No serviço de Data Science:
 
@@ -298,7 +298,7 @@ O projeto também utiliza Docker para empacotamento do Frontend e Backend no amb
 
 ---
 
-# 🔧 Variáveis de ambiente
+### 🔧 Variáveis de ambiente
 
 ## Backend
 
@@ -372,7 +372,7 @@ PYTHONUNBUFFERED=1
 
 ---
 
-# 🔌 Como utilizar a API
+### 🔌 Como utilizar a API
 
 A API Backend utiliza o padrão **REST/JSON**.
 
@@ -402,9 +402,9 @@ http://localhost:8080/swagger-ui.html
 
 ---
 
-# 📝 Exemplo de requisição — Backend
+### 📝 Exemplo de requisição — Backend
 
-### POST `/api/artigos/classificar`
+## POST `/api/artigos/classificar`
 
 ```json
 {
@@ -420,7 +420,7 @@ O Backend valida os dados, envia título e conteúdo ao serviço de Data Science
 
 ---
 
-# 🤖 API de Inteligência Artificial
+### 🤖 API de Inteligência Artificial
 
 Base local:
 
@@ -477,7 +477,7 @@ A resposta pode conter conteúdos relacionados com seus respectivos scores de si
 
 ---
 
-# 🧠 Modelo de IA
+### 🧠 Modelo de IA
 
 A classificação utiliza um pipeline baseado em:
 
@@ -508,7 +508,7 @@ Similaridade de cosseno
 
 ---
 
-# 🔄 Retreinamento
+### 🔄 Retreinamento
 
 Existe um endpoint preparado para futura evolução:
 
@@ -529,7 +529,7 @@ O endpoint é apenas um placeholder para evolução futura.
 
 ---
 
-# 👤 Human in the Loop
+### 👤 Human in the Loop
 
 A versão atual do projeto **não possui moderação humana ativa**.
 
@@ -545,7 +545,7 @@ Essas funcionalidades permanecem como possibilidades de evolução.
 
 ---
 
-# 🗄️ Banco de dados
+### 🗄️ Banco de dados
 
 ### Produção
 
@@ -569,7 +569,7 @@ O schema é versionado utilizando Flyway.
 
 ---
 
-# 🧪 Testes
+### 🧪 Testes
 
 O Backend utiliza:
 
@@ -611,7 +611,7 @@ npm run lint
 
 ---
 
-# ☁️ Deploy
+### ☁️ Deploy
 
 A arquitetura de produção utiliza:
 
@@ -647,7 +647,7 @@ O Oracle Autonomous Database permanece hospedado na OCI.
 
 ---
 
-# 🌐 Links
+### 🌐 Links
 
 ### Aplicação
 
@@ -667,7 +667,7 @@ https://github.com/No-Country-simulation/G9-BR-TEAM-25
 
 ---
 
-# 📊 Status do projeto
+### 📊 Status do projeto
 
 | Funcionalidade             | Status                             |
 | -------------------------- | ---------------------------------- |
@@ -689,7 +689,7 @@ https://github.com/No-Country-simulation/G9-BR-TEAM-25
 
 ---
 
-# 👥 Equipe
+### 👥 Equipe
 
 **Diego Reis Pitoco**
 **Laís Helena Guimarães**
@@ -698,7 +698,7 @@ https://github.com/No-Country-simulation/G9-BR-TEAM-25
 
 ---
 
-# 📄 Licença
+### 📄 Licença
 
 Este projeto não possui um arquivo `LICENSE` no momento.
 
