@@ -1,0 +1,37 @@
+# Segredos e configuração local (nunca devem ir para o contexto de build)
+
+.env
+.env.*
+*.env
+
+# Logs
+
+*.log
+
+# Controle de versão
+
+.git
+.git/**
+
+# IDEs
+
+.vscode
+.vscode/**
+.idea
+.idea/**
+
+# Código-fonte: não é necessário no contexto de build atual,
+# o Dockerfile usa apenas o JAR já compilado em target/
+
+src
+src/**
+
+# Artefatos de build do Maven, exceto o JAR que o Dockerfile precisa
+
+target/**
+!target/techmind-classificador-0.0.1-SNAPSHOT.jar
+
+# Serviço Python local não usado pela imagem do backend
+
+ml-service
+ml-service/**
