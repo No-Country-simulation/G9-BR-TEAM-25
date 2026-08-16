@@ -692,6 +692,7 @@ https://github.com/No-Country-simulation/G9-BR-TEAM-25
 ### 👥 Equipe
 
 **Diego Reis Pitoco**
+
 **Laís Helena Guimarães**
 
 **Equipe G9-BR-TEAM-25**
