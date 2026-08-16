@@ -1,6 +1,0 @@
-target/
-.env
-*.log
-
-# Local model copied for standalone execution
-classificador_techmind.pkl
