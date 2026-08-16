@@ -1,5 +1,5 @@
-````markdown
-# 🧠 TechMind
+
+### 🧠 TechMind
 
 Plataforma de organização inteligente de conteúdos técnicos utilizando Inteligência Artificial para classificação, extração de palavras-chave e recomendação de conteúdos relacionados.
 
@@ -7,7 +7,7 @@ Projeto desenvolvido durante o **Hackathon TechMind**, do programa **Oracle Next
 
 ---
 
-## 📌 Sobre o projeto
+### 📌 Sobre o projeto
 
 O TechMind recebe conteúdos técnicos, processa as informações por meio de um serviço de Inteligência Artificial e disponibiliza os resultados em um acervo pesquisável.
 
